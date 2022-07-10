@@ -2,7 +2,7 @@ class ApiAnswerError(Exception):
     pass
 
 
-class TelegramSendMessageError(Exception):
+class SendMessageError(Exception):
     pass
 
 
