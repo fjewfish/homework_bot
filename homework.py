@@ -25,12 +25,14 @@ HOMEWORK_STATUSES = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+logger = logging.getLogger(__name__)
+
 
 def send_message(bot: telegram.Bot, message: str) -> None:
     """Отправляет сообщение в Telegram чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-        logging.info(f'Бот отправил сообщение "{message}"')
+        logger.info(f'Бот отправил сообщение "{message}"')
     except Exception as err:
         raise SendMessageError('Ошибка при отправке сообщения') from err
 
@@ -40,7 +42,7 @@ def get_api_answer(current_timestamp: int) -> dict:
     try:
         timestamp = current_timestamp or int(time.time())
         params = {'from_date': timestamp}
-        logging.info(f'Запрос к API. Эндпоинт: {ENDPOINT}. headers: {HEADERS}')
+        logger.info(f'Запрос к API. Эндпоинт: {ENDPOINT}. headers: {HEADERS}')
         response = requests.get(
             ENDPOINT,
             headers=HEADERS,
@@ -53,7 +55,7 @@ def get_api_answer(current_timestamp: int) -> dict:
                 f'headers: {HEADERS}'
             )
         homework_statuses = response.json()
-        logging.info('Запрос к API успешно завершен')
+        logger.info('Запрос к API успешно завершен')
     except (JSONDecodeError, ValueError) as err:
         raise ValueError('Ошибка при декодирование json') from err
     except Exception as err:
@@ -65,12 +67,12 @@ def check_response(response: dict) -> list:
     """Проверяет ответ API на корректность."""
     if not isinstance(response, dict):
         raise TypeError(f'Нверный тип данных ответа: {type(response)} != dict')
-    if ('homeworks' or 'current_date') not in response:
+    if not all(key in response for key in ('homeworks', 'current_date')):
         raise KeyError('Отсутствуют ключи от API')
     homeworks = response.get('homeworks')
     if not isinstance(homeworks, list):
         raise TypeError(f'Нверный тип данных ДЗ: {type(response)} != list')
-    logging.info('Ответ от API прошел проверку')
+    logger.info('Ответ от API прошел проверку')
     return homeworks
 
 
@@ -78,7 +80,7 @@ def parse_status(homework: dict) -> str:
     """Извлекает из домашней работе статус этой работы."""
     if not isinstance(homework, dict):
         raise TypeError(f'Нверный тип данных ДЗ: {type(homework)} != dict')
-    if ('homework_name' or 'status') not in homework:
+    if not all(key in homework for key in ('homework_name', 'status')):
         raise KeyError('Отсутствуют ключи от последней работы')
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
@@ -110,7 +112,7 @@ def main() -> None:
     """Основная логика работы бота."""
     if not check_tokens():
         message = error_tokens_message()
-        logging.critical(message)
+        logger.critical(message)
         sys.exit()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
@@ -125,11 +127,11 @@ def main() -> None:
                     send_message(bot, status)
                     prev_message = status
             else:
-                logging.debug('В ответе API отсутствуют новые статусы')
+                logger.debug('В ответе API отсутствуют новые статусы')
             current_timestamp = int(time.time())
         except Exception as err:
             message = f'Сбой в работе программы: {err}'
-            logging.error(message)
+            logger.error(message)
             if message != prev_message:
                 send_message(bot, message)
                 prev_message = message
